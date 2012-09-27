@@ -115,7 +115,7 @@ class UploaderController extends Controller
         return new Response(json_encode(array(
             'event' => 'uploader:success',
             'data'  => array(
-                'filename' => $file->getClientOriginalName(),
+                'filename' => $filename,
             ),
         )));
     }
