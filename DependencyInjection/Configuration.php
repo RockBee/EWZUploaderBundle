@@ -23,6 +23,9 @@ class Configuration implements ConfigurationInterface
         $rootNode
             ->children()
                 ->booleanNode('load_jquery')->defaultFalse()->end()
+                ->booleanNode('generate_unique_name')->defaultFalse()->end()
+                ->booleanNode('keep_original_name')->defaultFalse()->end()
+                ->scalarNode('default_filename')->defaultValue('filename')->end()
 
                 ->arrayNode('media')
                     ->addDefaultsIfNotSet()

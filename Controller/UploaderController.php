@@ -84,8 +84,33 @@ class UploaderController extends Controller
             $folder = $this->container->getParameter('ewz_uploader.media.folder');
         }
         $directory = sprintf('%s/%s', $this->container->getParameter('ewz_uploader.media.dir'), $folder);
-
-        $file->move($directory, $file->getClientOriginalName());
+        
+        // Check if is necessaary generate a unique name
+        if (!$generateUniqueName = $this->get('request')->request->get('generateUniqueName')) {
+            $generateUniqueName = $this->container->getParameter('ewz_uploader.generate_unique_name');
+        }
+        $generateUniqueName = filter_var($generateUniqueName, FILTER_VALIDATE_BOOLEAN);
+        
+        // Check if will keep original name
+        if (!$keepOriginalName = $this->get('request')->request->get('keepOriginalName')) {
+            $keepOriginalName = $this->container->getParameter('ewz_uploader.keep_original_name');
+        }
+        $keepOriginalName = filter_var($keepOriginalName, FILTER_VALIDATE_BOOLEAN);
+        
+        // Get the default filename
+        if (!$defaultFilename = $this->get('request')->request->get('defaultFilename')) {
+            $defaultFilename = $this->container->getParameter('ewz_uploader.default_filename');
+        }
+        
+        if ($generateUniqueName) {
+            $filename = sha1(uniqid(mt_rand(), true)) . '.' . $file->guessExtension();
+        } elseif ($keepOriginalName) {
+            $filename = $file->getClientOriginalName();
+        } else {
+            $filename = $defaultFilename . '.' . $file->guessExtension();
+        }
+        
+        $file->move($directory, $filename);
 
         return new Response(json_encode(array(
             'event' => 'uploader:success',
