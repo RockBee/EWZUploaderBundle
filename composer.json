@@ -1,5 +1,5 @@
 {
-    "name": "excelwebzone/uploader-bundle",
+    "name": "hugomn/uploader-bundle",
     "description": "This bundle enhances the Symfony2 file upload experience using AjaxUpload library",
     "keywords": ["uploader"],
     "homepage": "https://github.com/excelwebzone/EWZUploaderBundle",
