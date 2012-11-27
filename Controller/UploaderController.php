@@ -58,13 +58,32 @@ class UploaderController extends Controller
             'maxSize'   => $maxSize,
             'mimeTypes' => $mimeTypes,
         ));
-
+        
         $errors = $this->get('validator')->validateValue($file, $fileConst);
         if (count($errors) > 0) {
             return new Response(json_encode(array(
                 'event' => 'uploader:error',
                 'data'  => array(
                     'message' => 'Invalid file.',
+                ),
+            )));
+        }
+        
+        // Validate file min width and height
+        $imageSize = getimagesize($file);
+        if (!$imageMinWidth = $this->get('request')->request->get('imageMinWidth')) {
+            $imageMinWidth = $this->container->getParameter('ewz_uploader.media.image_min_width');
+        }
+        
+        if (!$imageMinHeight = $this->get('request')->request->get('imageMinHeight')) {
+            $imageMinHeight = $this->container->getParameter('ewz_uploader.media.image_min_height');
+        }
+        
+        if ($imageSize[0] < $imageMinWidth || $imageSize[1] < $imageMinHeight) {
+            return new Response(json_encode(array(
+                'event' => 'uploader:error',
+                'data'  => array(
+                    'message' => 'The image must be at least '. $imageMinWidth .' pixels wide and ' . $imageMinHeight . ' pixels tall.',
                 ),
             )));
         }
@@ -116,7 +135,8 @@ class UploaderController extends Controller
             'event' => 'uploader:success',
             'data'  => array(
                 'filename' => $filename,
-            ),
+                'imagesize' => $imageSize,
+           ),
         )));
     }
 
@@ -215,5 +235,103 @@ class UploaderController extends Controller
             'Content-Type'        => $file->getMimeType(),
             'Content-Disposition' => sprintf('attachment;filename=%s', $file->getFilename()),
         ));
+    }
+    
+    /**
+     * Crops a file.
+     *
+     * @param string $filename The file name
+     * @param string $folder   The target folder
+     * @param string $uploadProportion The proportion used in preview image
+     * @param string $x X coordinate 
+     * @param string $y Y coordinate 
+     * @param string $w Width of cropped are
+     * @param string $h Height of cropped are
+     *
+     * @return Response A Response instance
+     *
+     * @Route("/file_crop", name="ewz_uploader_file_crop")
+     * @Method("POST")
+     */
+    public function cropAction() {
+        $response = new Response(null, 200, array(
+            'Content-Type' => 'application/json',
+        ));
+        
+        
+        if (!$filename = $this->get('request')->request->get('filename')) {
+            $response->setStatusCode(500);
+            $response->setContent(json_encode(array(
+                'event' => 'uploader:error',
+                'data'  => array(
+                    'message' => 'Invalid file.',
+                ),
+            )));    
+
+            return $response;        
+        }
+        
+        $uploadProportion = $this->get('request')->request->get('uploadProportion');
+        $x = $this->get('request')->request->get('x') / $uploadProportion;
+        $y = $this->get('request')->request->get('y') / $uploadProportion;
+        $w = $this->get('request')->request->get('w') / $uploadProportion;
+        $h = $this->get('request')->request->get('h') / $uploadProportion;
+
+        if (!$folder = $this->get('request')->request->get('folder')) {
+            $folder = $this->container->getParameter('ewz_uploader.media.folder');
+        }
+        $filepath = sprintf('%s/%s/%s', $this->container->getParameter('ewz_uploader.media.dir'), $folder, $filename);
+
+        // check if exists
+        if (!is_file($filepath)) {
+            $response->setStatusCode(500);
+            $response->setContent(json_encode(array(
+                'event' => 'uploader:error',
+                'data'  => array(
+                    'message' => 'File does not exists.',
+                ),
+            )));
+
+            return $response;
+        }
+
+        // crops file
+        $targ_w = $targ_h = 180;
+	$jpeg_quality = 90;
+        
+        // creates the new image
+	$img_r = imagecreatefromjpeg($filepath);
+	$dst_r = ImageCreateTrueColor($targ_w, $targ_h);
+        
+        // deletes the old image
+        $filesystem = new Filesystem();
+        $filesystem->remove($filepath);
+        
+        // saves the new one
+	imagecopyresampled($dst_r, $img_r, 0, 0, $x, $y,
+	$targ_w, $targ_h, $w, $h);
+
+        $success = imagejpeg($dst_r, $filepath, $jpeg_quality);
+        
+        if ($success) {
+            $response->setContent(json_encode(array(
+                'event' => 'uploader:filecropped',
+                'data'  => array(
+                    'filename' => $filename,
+               ),
+            )));
+
+        } else {
+            $response->setStatusCode(500);
+            $response->setContent(json_encode(array(
+                'event' => 'uploader:error',
+                'data'  => array(
+                    'message' => 'Error on file crop.',
+                ),
+            )));
+
+        }
+        return $response;
+        
     }
 }

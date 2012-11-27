@@ -37,6 +37,8 @@ class Configuration implements ConfigurationInterface
                         ->end()
                         ->scalarNode('dir')->defaultValue('%kernel.root_dir%/../web')->end()
                         ->scalarNode('folder')->defaultValue('uploads')->end()
+                        ->scalarNode('image_min_width')->defaultValue('180')->end()
+                        ->scalarNode('image_min_height')->defaultValue('180')->end()
                     ->end()
                 ->end()
 
@@ -47,6 +49,7 @@ class Configuration implements ConfigurationInterface
                         ->scalarNode('upload')->defaultValue('ewz_uploader_file_upload')->end()
                         ->scalarNode('remove')->defaultValue('ewz_uploader_file_remove')->end()
                         ->scalarNode('download')->defaultValue('ewz_uploader_file_download')->end()
+                        ->scalarNode('crop')->defaultValue('ewz_uploader_file_crop')->end()
                     ->end()
                 ->end()
             ->end()
