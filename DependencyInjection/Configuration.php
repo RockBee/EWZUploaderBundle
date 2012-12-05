@@ -39,6 +39,8 @@ class Configuration implements ConfigurationInterface
                         ->scalarNode('folder')->defaultValue('uploads')->end()
                         ->scalarNode('image_min_width')->defaultValue('180')->end()
                         ->scalarNode('image_min_height')->defaultValue('180')->end()
+                        ->scalarNode('image_max_width')->defaultValue('924')->end()
+                        ->scalarNode('image_resize_to_max')->defaultTrue()->end()
                     ->end()
                 ->end()
 
