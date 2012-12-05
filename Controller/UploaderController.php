@@ -3,10 +3,8 @@
 namespace EWZ\Bundle\UploaderBundle\Controller;
 
 use Symfony\Bundle\FrameworkBundle\Controller\Controller;
-
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Route;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Method;
-
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\HttpFoundation\File\File;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
@@ -17,8 +15,8 @@ use Symfony\Component\HttpFoundation\File\Exception\FileNotFoundException;
 /**
  * Uploader Controller.
  */
-class UploaderController extends Controller
-{
+class UploaderController extends Controller {
+
     /**
      * Uploads a file.
      *
@@ -32,17 +30,16 @@ class UploaderController extends Controller
      * @Route("/file_upload", name="ewz_uploader_file_upload")
      * @Method("POST")
      */
-    public function uploadAction()
-    {
+    public function uploadAction() {
         $file = $this->get('request')->files->get('file');
 
         if (!$file instanceof UploadedFile || !$file->isValid()) {
             return new Response(json_encode(array(
-                'event' => 'uploader:error',
-                'data'  => array(
-                    'message' => 'Missing file.',
-                ),
-            )));
+                                'event' => 'uploader:error',
+                                'data' => array(
+                                    'message' => 'Missing file.',
+                                ),
+                            )));
         }
 
         // validate file size and mimetype
@@ -55,47 +52,58 @@ class UploaderController extends Controller
         $mimeTypes = is_array($mimeTypes) ? $mimeTypes : json_decode($mimeTypes, true);
 
         $fileConst = new \Symfony\Component\Validator\Constraints\File(array(
-            'maxSize'   => $maxSize,
-            'mimeTypes' => $mimeTypes,
-        ));
-        
+                    'maxSize' => $maxSize,
+                    'mimeTypes' => $mimeTypes,
+                ));
+
         $errors = $this->get('validator')->validateValue($file, $fileConst);
         if (count($errors) > 0) {
             return new Response(json_encode(array(
-                'event' => 'uploader:error',
-                'data'  => array(
-                    'message' => 'Invalid file.',
-                ),
-            )));
+                                'event' => 'uploader:error',
+                                'data' => array(
+                                    'message' => 'Invalid file.',
+                                ),
+                            )));
         }
-        
+
         // Validate file min width and height
         $imageSize = getimagesize($file);
         if (!$imageMinWidth = $this->get('request')->request->get('imageMinWidth')) {
             $imageMinWidth = $this->container->getParameter('ewz_uploader.media.image_min_width');
         }
-        
+
         if (!$imageMinHeight = $this->get('request')->request->get('imageMinHeight')) {
             $imageMinHeight = $this->container->getParameter('ewz_uploader.media.image_min_height');
         }
-        
+
         if ($imageSize[0] < $imageMinWidth || $imageSize[1] < $imageMinHeight) {
             return new Response(json_encode(array(
-                'event' => 'uploader:error',
-                'data'  => array(
-                    'message' => 'The image must be at least '. $imageMinWidth .' pixels wide and ' . $imageMinHeight . ' pixels tall.',
-                ),
-            )));
+                                'event' => 'uploader:error',
+                                'data' => array(
+                                    'message' => 'The image must be at least ' . $imageMinWidth . ' pixels wide and ' . $imageMinHeight . ' pixels tall.',
+                                ),
+                            )));
         }
 
         // check if exists
         if (!is_file($file->__toString())) {
             return new Response(json_encode(array(
-                'event' => 'uploader:error',
-                'data'  => array(
-                    'message' => 'File was not uploaded.',
-                ),
-            )));
+                                'event' => 'uploader:error',
+                                'data' => array(
+                                    'message' => 'File was not uploaded.',
+                                ),
+                            )));
+        }
+
+
+
+        // Validate image max width
+        if (!$imageMaxWidth = $this->get('request')->request->get('imageMaxWidth')) {
+            $imageMaxWidth = $this->container->getParameter('ewz_uploader.media.image_max_width');
+        }
+
+        if (!$imageResizeToMax = $this->get('request')->request->get('imageResizeToMax')) {
+            $imageResizeToMax = $this->container->getParameter('ewz_uploader.media.image_resize_to_max');
         }
 
         // set drop directory
@@ -103,24 +111,25 @@ class UploaderController extends Controller
             $folder = $this->container->getParameter('ewz_uploader.media.folder');
         }
         $directory = sprintf('%s/%s', $this->container->getParameter('ewz_uploader.media.dir'), $folder);
-        
+
         // Check if is necessaary generate a unique name
         if (!$generateUniqueName = $this->get('request')->request->get('generateUniqueName')) {
             $generateUniqueName = $this->container->getParameter('ewz_uploader.generate_unique_name');
         }
         $generateUniqueName = filter_var($generateUniqueName, FILTER_VALIDATE_BOOLEAN);
-        
+
         // Check if will keep original name
         if (!$keepOriginalName = $this->get('request')->request->get('keepOriginalName')) {
             $keepOriginalName = $this->container->getParameter('ewz_uploader.keep_original_name');
         }
         $keepOriginalName = filter_var($keepOriginalName, FILTER_VALIDATE_BOOLEAN);
-        
+
         // Get the default filename
         if (!$defaultFilename = $this->get('request')->request->get('defaultFilename')) {
             $defaultFilename = $this->container->getParameter('ewz_uploader.default_filename');
         }
-        
+
+        // Defines the filename
         if ($generateUniqueName) {
             $filename = sha1(uniqid(mt_rand(), true)) . '.' . $file->guessExtension();
         } elseif ($keepOriginalName) {
@@ -128,16 +137,41 @@ class UploaderController extends Controller
         } else {
             $filename = $defaultFilename . '.' . $file->guessExtension();
         }
-        
-        $file->move($directory, $filename);
 
+        // Verifica se a largura é maior do que a permitida
+        if ($imageSize[0] > $imageMaxWidth) {
+            // Verifica se a imagem deve ser redimensionada para o máximo
+            if ($imageResizeToMax) {
+                $proportion = $imageSize[0] / $imageMaxWidth;
+                $newHeight = $imageSize[1] / $proportion;
+                $filepath = sprintf('%s/%s', $directory, $filename);
+
+                // Redimensiona a imagem e salva.
+                $imageResized = imagecreatetruecolor($imageMaxWidth, $newHeight);
+                $imageTmp = $this->imageCreateFromAny($file);
+                imagecopyresampled($imageResized, $imageTmp, 0, 0, 0, 0, $imageMaxWidth, $newHeight, $imageSize[0], $imageSize[1]);
+                imagejpeg($imageResized, $filepath, 90);
+                $imageSize = getimagesize($filepath);
+            } else {
+                return new Response(json_encode(array(
+                                    'event' => 'uploader:error',
+                                    'data' => array(
+                                        'message' => 'The image must not have more than ' . $imageMaxWidth . ' pixels wide.',
+                                    ),
+                                )));
+            }
+        } else {
+            // Apenas move a imagem.
+            $file->move($directory, $filename);
+        }
+        
         return new Response(json_encode(array(
-            'event' => 'uploader:success',
-            'data'  => array(
-                'filename' => $filename,
-                'imagesize' => $imageSize,
-           ),
-        )));
+                            'event' => 'uploader:success',
+                            'data' => array(
+                                'filename' => $filename,
+                                'imagesize' => $imageSize,
+                            ),
+                        )));
     }
 
     /**
@@ -151,22 +185,21 @@ class UploaderController extends Controller
      * @Route("/file_remove", name="ewz_uploader_file_remove")
      * @Method("POST")
      */
-    public function removeAction()
-    {
+    public function removeAction() {
         $response = new Response(null, 200, array(
-            'Content-Type' => 'application/json',
-        ));
+                    'Content-Type' => 'application/json',
+                ));
 
         if (!$filename = $this->get('request')->request->get('filename')) {
             $response->setStatusCode(500);
             $response->setContent(json_encode(array(
-                'event' => 'uploader:error',
-                'data'  => array(
-                    'message' => 'Invalid file.',
-                ),
-            )));    
+                        'event' => 'uploader:error',
+                        'data' => array(
+                            'message' => 'Invalid file.',
+                        ),
+                    )));
 
-            return $response;        
+            return $response;
         }
 
         if (!$folder = $this->get('request')->request->get('folder')) {
@@ -178,11 +211,11 @@ class UploaderController extends Controller
         if (!is_file($filepath)) {
             $response->setStatusCode(500);
             $response->setContent(json_encode(array(
-                'event' => 'uploader:error',
-                'data'  => array(
-                    'message' => 'File was not uploaded.',
-                ),
-            )));
+                        'event' => 'uploader:error',
+                        'data' => array(
+                            'message' => 'File was not uploaded.',
+                        ),
+                    )));
 
             return $response;
         }
@@ -192,9 +225,9 @@ class UploaderController extends Controller
         $filesystem->remove($filepath);
 
         $response->setContent(json_encode(array(
-            'event' => 'uploader:fileremoved',
-            'data'  => array(),
-        )));
+                    'event' => 'uploader:fileremoved',
+                    'data' => array(),
+                )));
 
         return $response;
     }
@@ -213,8 +246,7 @@ class UploaderController extends Controller
      * @throws FileException         If the file invalid
      * @throws FileNotFoundException If the file does not exist
      */
-    public function downloadAction()
-    {
+    public function downloadAction() {
         if (!$filename = $this->get('request')->query->get('filename')) {
             throw new FileException('Invalid file.');
         }
@@ -232,11 +264,11 @@ class UploaderController extends Controller
         $content = file_get_contents($filepath);
 
         return new Response($content, 200, array(
-            'Content-Type'        => $file->getMimeType(),
-            'Content-Disposition' => sprintf('attachment;filename=%s', $file->getFilename()),
-        ));
+                    'Content-Type' => $file->getMimeType(),
+                    'Content-Disposition' => sprintf('attachment;filename=%s', $file->getFilename()),
+                ));
     }
-    
+
     /**
      * Crops a file.
      *
@@ -255,22 +287,22 @@ class UploaderController extends Controller
      */
     public function cropAction() {
         $response = new Response(null, 200, array(
-            'Content-Type' => 'application/json',
-        ));
-        
-        
+                    'Content-Type' => 'application/json',
+                ));
+
+
         if (!$filename = $this->get('request')->request->get('filename')) {
             $response->setStatusCode(500);
             $response->setContent(json_encode(array(
-                'event' => 'uploader:error',
-                'data'  => array(
-                    'message' => 'Invalid file.',
-                ),
-            )));    
+                        'event' => 'uploader:error',
+                        'data' => array(
+                            'message' => 'Invalid file.',
+                        ),
+                    )));
 
-            return $response;        
+            return $response;
         }
-        
+
         $uploadProportion = $this->get('request')->request->get('uploadProportion');
         $x = $this->get('request')->request->get('x') / $uploadProportion;
         $y = $this->get('request')->request->get('y') / $uploadProportion;
@@ -280,58 +312,146 @@ class UploaderController extends Controller
         if (!$folder = $this->get('request')->request->get('folder')) {
             $folder = $this->container->getParameter('ewz_uploader.media.folder');
         }
+        
         $filepath = sprintf('%s/%s/%s', $this->container->getParameter('ewz_uploader.media.dir'), $folder, $filename);
 
         // check if exists
         if (!is_file($filepath)) {
             $response->setStatusCode(500);
             $response->setContent(json_encode(array(
-                'event' => 'uploader:error',
-                'data'  => array(
-                    'message' => 'File does not exists.',
-                ),
-            )));
+                        'event' => 'uploader:error',
+                        'data' => array(
+                            'message' => 'File does not exists.',
+                        ),
+                    )));
 
             return $response;
         }
 
         // crops file
-        $targ_w = $targ_h = 180;
-	$jpeg_quality = 90;
-        
+        $jpeg_quality = 90;
+
         // creates the new image
-	$img_r = imagecreatefromjpeg($filepath);
-	$dst_r = ImageCreateTrueColor($targ_w, $targ_h);
-        
+        $img_r = $this->imageCreateFromAny($filepath);
+        $dst_r = ImageCreateTrueColor($w, $h);
+
         // deletes the old image
         $filesystem = new Filesystem();
         $filesystem->remove($filepath);
-        
+
         // saves the new one
-	imagecopyresampled($dst_r, $img_r, 0, 0, $x, $y,
-	$targ_w, $targ_h, $w, $h);
+        imagecopyresampled($dst_r, $img_r, 0, 0, $x, $y, $w, $h, $w, $h);
 
         $success = imagejpeg($dst_r, $filepath, $jpeg_quality);
+        $imageSize = getimagesize($filepath);
         
+        if (!$imageMinWidth = $this->get('request')->request->get('imageMinWidth')) {
+            $imageMinWidth = $this->container->getParameter('ewz_uploader.media.image_min_width');
+        }
+        
+        // Verifica se a imagem precisa ser redimensionada para o tamanho mínimo
+        $croppedImageResizeToMin = filter_var($this->get('request')->request->get('croppedImageResizeToMin'), FILTER_VALIDATE_BOOLEAN);
+        if ($croppedImageResizeToMin) {
+            $this->get('logger')->err('resize - yes');
+        }
+        
+        if ($croppedImageResizeToMin) {
+            // Verifica se a imagem será redimensionada para a largura mínima
+            if ($imageSize[0] > $imageMinWidth) {
+                $proportion = $imageSize[0] / $imageMinWidth;
+                $newHeight = $imageSize[1] / $proportion;
+
+                // Redimensiona a imagem e salva.
+                $imageResized = imagecreatetruecolor($imageMinWidth, $newHeight);
+                $imageTmp = $this->imageCreateFromAny($filepath);
+                imagecopyresampled($imageResized, $imageTmp, 0, 0, 0, 0, $imageMinWidth, $newHeight, $imageSize[0], $imageSize[1]);
+                imagejpeg($imageResized, $filepath, 90);
+                $imageSize = getimagesize($filepath);
+            }
+        }
+        
+
         if ($success) {
             $response->setContent(json_encode(array(
-                'event' => 'uploader:filecropped',
-                'data'  => array(
-                    'filename' => $filename,
-               ),
-            )));
-
+                        'event' => 'uploader:filecropped',
+                        'data' => array(
+                            'filename' => $filename,
+                            'imagesize' => $imageSize
+                        ),
+                    )));
         } else {
             $response->setStatusCode(500);
             $response->setContent(json_encode(array(
-                'event' => 'uploader:error',
-                'data'  => array(
-                    'message' => 'Error on file crop.',
-                ),
-            )));
-
+                        'event' => 'uploader:error',
+                        'data' => array(
+                            'message' => 'Error on file crop.',
+                        ),
+                    )));
         }
         return $response;
-        
     }
+
+    /**
+     * 
+     * @param type $originalImage
+     * @param type $toWidth
+     * @param type $toHeight
+     * @return type
+     */
+    private function resizeImage($originalImage, $toWidth, $toHeight) {
+
+        list($width, $height) = getimagesize($originalImage);
+        $xscale = $width / $toWidth;
+        $yscale = $height / $toHeight;
+
+        if ($yscale > $xscale) {
+            $new_width = round($width * (1 / $yscale));
+            $new_height = round($height * (1 / $yscale));
+        } else {
+            $new_width = round($width * (1 / $xscale));
+            $new_height = round($height * (1 / $xscale));
+        }
+
+
+        $imageResized = imagecreatetruecolor($new_width, $new_height);
+        $imageTmp = $this->imageCreateFromAny($originalImage);
+        imagecopyresampled($imageResized, $imageTmp, 0, 0, 0, 0, $new_width, $new_height, $width, $height);
+
+        return $imageResized;
+    }
+
+    /**
+     * 
+     * @param type $filepath
+     * @return boolean
+     */
+    private function imageCreateFromAny($filepath) {
+        $imagesize = getimagesize($filepath); 
+        $type = $imagesize[2]; 
+        $allowedTypes = array(
+            1, // [] gif
+            2, // [] jpg
+            3, // [] png
+            6   // [] bmp
+        );
+        if (!in_array($type, $allowedTypes)) {
+            return false;
+        }
+        switch ($type) {
+            case 1 :
+                $im = imageCreateFromGif($filepath);
+                break;
+            case 2 :
+                $im = imageCreateFromJpeg($filepath);
+                break;
+            case 3 :
+                $im = imageCreateFromPng($filepath);
+                break;
+            case 6 :
+                $im = imageCreateFromBmp($filepath);
+                break;
+        }
+        return $im;
+    }
+
 }
