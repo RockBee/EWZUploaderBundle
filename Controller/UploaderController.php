@@ -37,7 +37,7 @@ class UploaderController extends Controller {
             return new Response(json_encode(array(
                                 'event' => 'uploader:error',
                                 'data' => array(
-                                    'message' => 'Missing file.',
+                                    'message' => $this->get("translator")->trans('uploader.error.missing.file'),
                                 ),
                             )));
         }
@@ -61,7 +61,7 @@ class UploaderController extends Controller {
             return new Response(json_encode(array(
                                 'event' => 'uploader:error',
                                 'data' => array(
-                                    'message' => 'Invalid file.',
+                                    'message' => $this->get("translator")->trans('uploader.error.invalid.file'),
                                 ),
                             )));
         }
@@ -80,7 +80,7 @@ class UploaderController extends Controller {
             return new Response(json_encode(array(
                                 'event' => 'uploader:error',
                                 'data' => array(
-                                    'message' => 'The image must be at least ' . $imageMinWidth . ' pixels wide and ' . $imageMinHeight . ' pixels tall.',
+                                    'message' =>  $this->get("translator")->trans('uploader.error.minsize', array("%imageMinWidth%" => $imageMinWidth, "%imageMinHeight%" => $imageMinHeight)),
                                 ),
                             )));
         }
@@ -90,7 +90,7 @@ class UploaderController extends Controller {
             return new Response(json_encode(array(
                                 'event' => 'uploader:error',
                                 'data' => array(
-                                    'message' => 'File was not uploaded.',
+                                    'message' => $this->get("translator")->trans('uploader.error.file.not.uploaded'),
                                 ),
                             )));
         }
@@ -156,7 +156,7 @@ class UploaderController extends Controller {
                 return new Response(json_encode(array(
                                     'event' => 'uploader:error',
                                     'data' => array(
-                                        'message' => 'The image must not have more than ' . $imageMaxWidth . ' pixels wide.',
+                                        'message' => $this->get("translator")->trans('uploader.error.maxsize', array("%imageMaxWidth%" => $imageMaxWidth)),
                                     ),
                                 )));
             }
@@ -195,7 +195,7 @@ class UploaderController extends Controller {
             $response->setContent(json_encode(array(
                         'event' => 'uploader:error',
                         'data' => array(
-                            'message' => 'Invalid file.',
+                            'message' => $this->get("translator")->trans('uploader.error.invalid.file'),
                         ),
                     )));
 
@@ -213,7 +213,7 @@ class UploaderController extends Controller {
             $response->setContent(json_encode(array(
                         'event' => 'uploader:error',
                         'data' => array(
-                            'message' => 'File was not uploaded.',
+                            'message' => $this->get("translator")->trans('uploader.error.file.not.uploaded'),
                         ),
                     )));
 
@@ -296,7 +296,7 @@ class UploaderController extends Controller {
             $response->setContent(json_encode(array(
                         'event' => 'uploader:error',
                         'data' => array(
-                            'message' => 'Invalid file.',
+                            'message' => $this->get("translator")->trans('uploader.error.invalid.file'),
                         ),
                     )));
 
@@ -321,7 +321,7 @@ class UploaderController extends Controller {
             $response->setContent(json_encode(array(
                         'event' => 'uploader:error',
                         'data' => array(
-                            'message' => 'File does not exists.',
+                            'message' => $this->get("translator")->trans('uploader.error.invalid.file'),
                         ),
                     )));
 
@@ -384,7 +384,7 @@ class UploaderController extends Controller {
             $response->setContent(json_encode(array(
                         'event' => 'uploader:error',
                         'data' => array(
-                            'message' => 'Error on file crop.',
+                            'message' => $this->get("translator")->trans('uploader.error.crop'),
                         ),
                     )));
         }
