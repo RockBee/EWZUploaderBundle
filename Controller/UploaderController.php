@@ -65,47 +65,53 @@ class UploaderController extends Controller {
                                 ),
                             )));
         }
+        
+        // check if exists
+        if (!is_file($file->__toString())) {
+            return new Response(json_encode(array(
+                'event' => 'uploader:error',
+                'data' => array(
+                    'message' => $this->get("translator")->trans('uploader.error.file.not.uploaded'),
+                ),
+            )));
+        }
 
-        // Validate file min width and height
+        // Image min width
         $imageSize = getimagesize($file);
         if (!$imageMinWidth = $this->get('request')->request->get('imageMinWidth')) {
             $imageMinWidth = $this->container->getParameter('ewz_uploader.media.image_min_width');
         }
-
+        
+        // Image min height
         if (!$imageMinHeight = $this->get('request')->request->get('imageMinHeight')) {
             $imageMinHeight = $this->container->getParameter('ewz_uploader.media.image_min_height');
         }
-
-        if ($imageSize[0] < $imageMinWidth || $imageSize[1] < $imageMinHeight) {
-            return new Response(json_encode(array(
-                                'event' => 'uploader:error',
-                                'data' => array(
-                                    'message' =>  $this->get("translator")->trans('uploader.error.minsize', array("%imageMinWidth%" => $imageMinWidth, "%imageMinHeight%" => $imageMinHeight)),
-                                ),
-                            )));
-        }
-
-        // check if exists
-        if (!is_file($file->__toString())) {
-            return new Response(json_encode(array(
-                                'event' => 'uploader:error',
-                                'data' => array(
-                                    'message' => $this->get("translator")->trans('uploader.error.file.not.uploaded'),
-                                ),
-                            )));
-        }
-
-
-
-        // Validate image max width
+        
+        // Image max width
         if (!$imageMaxWidth = $this->get('request')->request->get('imageMaxWidth')) {
             $imageMaxWidth = $this->container->getParameter('ewz_uploader.media.image_max_width');
         }
-
-        if (!$imageResizeToMax = $this->get('request')->request->get('imageResizeToMax')) {
-            $imageResizeToMax = $this->container->getParameter('ewz_uploader.media.image_resize_to_max');
+        
+        // Image max height
+        if (!$imageMaxHeight = $this->get('request')->request->get('imageMaxHeight')) {
+            $imageMaxHeight = $this->container->getParameter('ewz_uploader.media.image_max_height');
         }
-
+        
+        // Image show width
+        if (!$imageShowMaxWidth = $this->get('request')->request->get('imageShowMaxWidth')) {
+            $imageShowMaxWidth = $this->container->getParameter('ewz_uploader.media.image_show_max_width');
+        }
+        
+        // Image show height
+        if (!$imageShowMinWidth = $this->get('request')->request->get('imageShowMinWidth')) {
+            $imageShowMinWidth = $this->container->getParameter('ewz_uploader.media.image_show_min_width');
+        }
+        // Image resize to show
+        if (!$imageResizeToShow = $this->get('request')->request->get('imageResizeToShow')) {
+            $imageResizeToShow = $this->container->getParameter('ewz_uploader.media.image_resize_to_show');
+        }
+        $imageResizeToShow = filter_var($imageResizeToShow, FILTER_VALIDATE_BOOLEAN);
+        
         // set drop directory
         if (!$folder = $this->get('request')->request->get('folder')) {
             $folder = $this->container->getParameter('ewz_uploader.media.folder');
@@ -137,41 +143,67 @@ class UploaderController extends Controller {
         } else {
             $filename = $defaultFilename . '.' . $file->guessExtension();
         }
-
-        // Verifica se a largura é maior do que a permitida
-        if ($imageSize[0] > $imageMaxWidth) {
-            // Verifica se a imagem deve ser redimensionada para o máximo
-            if ($imageResizeToMax) {
-                $proportion = $imageSize[0] / $imageMaxWidth;
+        
+        // Validate file min width and height
+        if ((($imageMinHeight != "null") && $imageSize[0] < $imageMinWidth) || (($imageMinHeight != null) && $imageSize[1] < $imageMinHeight)) {
+            return new Response(json_encode(array(
+                'event' => 'uploader:error',
+                'data' => array(
+                    'message' =>  $this->get("translator")->trans('uploader.error.minsize', array("%imageMinWidth%" => $imageMinWidth, "%imageMinHeight%" => $imageMinHeight)),
+                ),
+            )));
+        }
+        
+        // Validate file max width and height
+        if ((($imageMaxWidth != "null") && $imageSize[0] > $imageMaxWidth) || (($imageMaxHeight != "null") && $imageSize[1] > $imageMaxHeight)) {
+            return new Response(json_encode(array(
+                'event' => 'uploader:error',
+                'data' => array(
+                    'message' =>  $this->get("translator")->trans('uploader.error.maxsize', array("%imageMaxWidth%" => $imageMaxWidth, "%imageMaxHeight%" => $imageMaxHeight)),
+                ),
+            )));
+        }
+        
+        // Verifica se a imagem precisa ser redimensionada
+        if ($imageResizeToShow) {
+            $newWidth = $imageSize[0];
+            $newHeight = $imageSize[1];
+            
+            // Verifica se a imagem é maior que o max show
+            if (($imageShowMaxWidth != "null") && ($imageSize[0] > $imageShowMaxWidth)) {
+                $newWidth = $imageShowMaxWidth;
+                $proportion = $imageSize[0] / $imageShowMaxWidth;
                 $newHeight = $imageSize[1] / $proportion;
-                $filepath = sprintf('%s/%s', $directory, $filename);
-
-                // Redimensiona a imagem e salva.
-                $imageResized = imagecreatetruecolor($imageMaxWidth, $newHeight);
-                $imageTmp = $this->imageCreateFromAny($file);
-                imagecopyresampled($imageResized, $imageTmp, 0, 0, 0, 0, $imageMaxWidth, $newHeight, $imageSize[0], $imageSize[1]);
-                imagejpeg($imageResized, $filepath, 90);
-                $imageSize = getimagesize($filepath);
-            } else {
-                return new Response(json_encode(array(
-                                    'event' => 'uploader:error',
-                                    'data' => array(
-                                        'message' => $this->get("translator")->trans('uploader.error.maxsize', array("%imageMaxWidth%" => $imageMaxWidth)),
-                                    ),
-                                )));
             }
+            
+            // Verifica se a imagem é menor que o min show
+            if (($imageShowMinWidth != "null") && ($imageSize[0] < $imageShowMinWidth)) {
+                $newWidth = $imageShowMinWidth;
+                $proportion = $imageSize[0] / $imageShowMinWidth;
+                $newHeight = $imageSize[1] / $proportion;
+            }
+            
+            $filepath = sprintf('%s/%s', $directory, $filename);
+
+            // Redimensiona a imagem e salva.
+            $imageResized = imagecreatetruecolor($newWidth, $newHeight);
+            $imageTmp = $this->imageCreateFromAny($file);
+            imagecopyresampled($imageResized, $imageTmp, 0, 0, 0, 0, $newWidth, $newHeight, $imageSize[0], $imageSize[1]);
+            imagejpeg($imageResized, $filepath, 90);
+            $imageSize = getimagesize($filepath);
+            
         } else {
             // Apenas move a imagem.
             $file->move($directory, $filename);
         }
         
         return new Response(json_encode(array(
-                            'event' => 'uploader:success',
-                            'data' => array(
-                                'filename' => $filename,
-                                'imagesize' => $imageSize,
-                            ),
-                        )));
+                'event' => 'uploader:success',
+                'data' => array(
+                    'filename' => $filename,
+                    'imagesize' => $imageSize,
+                ),
+            )));
     }
 
     /**
@@ -345,26 +377,22 @@ class UploaderController extends Controller {
         $success = imagejpeg($dst_r, $filepath, $jpeg_quality);
         $imageSize = getimagesize($filepath);
         
-        if (!$imageMinWidth = $this->get('request')->request->get('imageMinWidth')) {
-            $imageMinWidth = $this->container->getParameter('ewz_uploader.media.image_min_width');
+        if (!$imageShowMinWidth = $this->get('request')->request->get('imageShowMinWidth')) {
+            $imageShowMinWidth = $this->container->getParameter('ewz_uploader.media.image_show_min_width');
         }
         
         // Verifica se a imagem precisa ser redimensionada para o tamanho mínimo
-        $croppedImageResizeToMin = filter_var($this->get('request')->request->get('croppedImageResizeToMin'), FILTER_VALIDATE_BOOLEAN);
-        if ($croppedImageResizeToMin) {
-            $this->get('logger')->err('resize - yes');
-        }
-        
-        if ($croppedImageResizeToMin) {
+        $cropResizeToShow = filter_var($this->get('request')->request->get('cropResizeToShow'), FILTER_VALIDATE_BOOLEAN);
+        if ($cropResizeToShow) {
             // Verifica se a imagem será redimensionada para a largura mínima
-            if ($imageSize[0] > $imageMinWidth) {
-                $proportion = $imageSize[0] / $imageMinWidth;
+            if ($imageSize[0] > $imageShowMinWidth) {
+                $proportion = $imageSize[0] / $imageShowMinWidth;
                 $newHeight = $imageSize[1] / $proportion;
 
                 // Redimensiona a imagem e salva.
-                $imageResized = imagecreatetruecolor($imageMinWidth, $newHeight);
+                $imageResized = imagecreatetruecolor($imageShowMinWidth, $newHeight);
                 $imageTmp = $this->imageCreateFromAny($filepath);
-                imagecopyresampled($imageResized, $imageTmp, 0, 0, 0, 0, $imageMinWidth, $newHeight, $imageSize[0], $imageSize[1]);
+                imagecopyresampled($imageResized, $imageTmp, 0, 0, 0, 0, $imageShowMinWidth, $newHeight, $imageSize[0], $imageSize[1]);
                 imagejpeg($imageResized, $filepath, 90);
                 $imageSize = getimagesize($filepath);
             }
